@@ -2,7 +2,9 @@
 
 Status: **planned**
 
-This document describes the sanitized provisioning workflow for the dedicated Docker LXC. Real credentials and host-specific values must be supplied only in the local shell and must never be committed.
+This document describes the sanitized provisioning workflow for the initial dedicated Docker LXC. Real credentials and host-specific values must be supplied only in the local shell and must never be committed.
+
+The LXC is the first Docker host, not an application architecture dependency. The Compose deployment must remain portable to a conventional Debian VM as described in [`PORTABILITY.md`](PORTABILITY.md).
 
 ## 1. Provision the Docker LXC
 
@@ -41,7 +43,7 @@ free -h
 nproc
 ```
 
-The repository documentation should record only non-sensitive architectural facts and software-version requirements. Do not commit the real LXC IP address or SSH key.
+The repository documentation should record only non-sensitive architectural facts and software-version requirements. Do not commit the real LXC IP address, CT ID, SSH key, public endpoint or other infrastructure identifiers.
 
 ## 3. Baseline checks
 
@@ -54,7 +56,8 @@ Confirm:
 - time and timezone are correct;
 - SSH public-key authentication works before disabling or rotating any temporary password;
 - the root filesystem has adequate free space;
-- Docker can create and start a disposable container.
+- Docker can create and start a disposable container;
+- no unusual LXC-only runtime dependency is introduced merely to make the application stack work.
 
 Suggested validation:
 
@@ -73,7 +76,7 @@ apt-get update
 apt-get install -y git curl ca-certificates openssl
 ```
 
-Avoid installing application dependencies directly on the LXC host when they belong inside containers.
+Avoid installing application dependencies directly on the Docker host when they belong inside containers.
 
 ## 5. Clone this repository
 
@@ -88,7 +91,21 @@ cd lxc-remux-stack
 
 This repository is the deployment wrapper and documentation source. The Viren070 template will be brought in during the implementation phase in a way that preserves a clear upstream relationship.
 
-## 6. Secrets
+## 6. Previous K3s reference
+
+The existing K3s streaming node remains online during migration. Its repository is:
+
+```text
+https://github.com/FabioCamin8/k3s-streaming-stack
+```
+
+The operator may provide its private address/access path separately. Do not record that address in Git.
+
+The old node may be inspected read-only to verify the actual behavior that the Docker replacement must preserve. Do not modify/restart the old stack during bootstrap or comparison without explicit operator authorization.
+
+See [`PARITY.md`](PARITY.md).
+
+## 7. Secrets
 
 Generate and store all real secrets locally. Never place them in Git history.
 
@@ -101,6 +118,22 @@ openssl rand -base64 64 | tr -d '=/' | tr -d '\n'; echo
 
 Real `.env` files must remain ignored. Only `.env.example` files with placeholders may be committed.
 
-## 7. Before implementation
+## 8. Internet exposure boundary
 
-Do not change production DNS, NAT, or the existing stack at this stage. The new LXC must first pass the validation gates in [`PLAN.md`](PLAN.md).
+Do not change production DNS, NAT, firewall rules, Internet forwarding, or the existing K3s stack at this stage.
+
+The new LXC must first pass the validation gates in [`PLAN.md`](PLAN.md). When local/LAN validation is complete, stop and present evidence to the operator. Internet forwarding to the new LXC is enabled only after explicit operator approval.
+
+## 9. Future VM bootstrap
+
+A later migration to a Debian VM should reuse the same application/deployment contract:
+
+1. provision supported Debian VM;
+2. install Docker Engine and Compose v2;
+3. clone this repository and the tested Viren070 upstream revision;
+4. restore untracked configuration/secrets and persistent data;
+5. run `docker compose config`;
+6. start and validate services;
+7. switch forwarding only after operator validation.
+
+K3s is intentionally not part of that future VM path.
