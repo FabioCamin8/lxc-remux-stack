@@ -1,0 +1,26 @@
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+*.secret
+*.secrets
+secrets/
+
+# Local runtime state
+data/
+backups/
+*.db
+*.sqlite
+*.sqlite3
+
+# Generated / temporary files
+.tmp/
+tmp/
+*.log
+*.bak
+*.swp
+.DS_Store
+
+# Editor / tooling
+.vscode/
+.idea/
