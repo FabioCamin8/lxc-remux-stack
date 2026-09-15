@@ -1,0 +1,8 @@
+users:
+  operator:
+    disabled: false
+    displayname: Operator
+    password: <ARGON2ID_PASSWORD_HASH>
+    email: operator@example.com
+    groups:
+      - admins

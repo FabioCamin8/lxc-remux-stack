@@ -1,6 +1,6 @@
 # Implementation and migration plan
 
-Status: **planning**
+Status: **wrapper implemented; target runtime pending**
 
 ## Goal
 
@@ -159,8 +159,8 @@ Host-specific provisioning belongs outside the application contract. A future LX
 - [x] add Codex/agent operating instructions;
 - [x] define K3s functional parity contract;
 - [x] define LXC -> VM Docker portability contract;
-- [ ] add example configuration and Remux overlay;
-- [ ] add validation scripts.
+- [x] add example configuration and Remux overlay;
+- [x] add validation scripts.
 
 Gate: repository contains no operational secrets or personal infrastructure values.
 
@@ -168,19 +168,25 @@ Gate: repository contains no operational secrets or personal infrastructure valu
 
 Before treating the Docker design as final:
 
-- [ ] read the current `k3s-streaming-stack` repository documentation/manifests/validation records;
-- [ ] capture the current reference repository commit;
+- [x] read the current `k3s-streaming-stack` repository documentation/manifests/validation records;
+- [x] capture the current reference repository commit;
 - [ ] when reachable, inspect `k3s01` read-only;
 - [ ] identify current AIOStreams/Remux image versions and runtime digests without exposing secrets;
-- [ ] identify persistence boundaries;
-- [ ] identify current ingress/routes/auth boundaries;
-- [ ] identify Remux -> AIOStreams service behavior;
-- [ ] identify current playback/redirect behavior;
-- [ ] identify current Internet port/TLS assumptions;
+- [x] identify repository-recorded persistence boundaries;
+- [x] identify repository-recorded ingress/routes/auth boundaries;
+- [x] identify repository-recorded Remux -> AIOStreams service behavior;
+- [x] identify repository-recorded playback/redirect behavior;
+- [x] identify repository-recorded Internet port/TLS assumptions;
 - [ ] record any behavior that differs from the Git contract;
 - [ ] turn findings into explicit Docker validation cases.
 
 No mutation of the old stack is allowed in this phase.
+
+Static reconstruction uses merged reference commit
+`6c96e820200a1990e8ef2c01bcbac401e5e0d868` plus the later feature evidence
+listed in [`UPSTREAMS.md`](UPSTREAMS.md). Live inspection is still required:
+strict SSH stopped at an untrusted host-key boundary, so mutable workload,
+image, ingress and forwarding facts remain unknown rather than inferred.
 
 Gate: `PARITY.md` and/or a sanitized validation note accurately describe what the Docker implementation must preserve.
 
@@ -211,7 +217,8 @@ Gate: healthy standalone Docker LXC.
 - [ ] create local `/opt/docker/.env` from sanitized examples;
 - [ ] generate Authelia/application secrets locally;
 - [ ] keep all populated env files untracked;
-- [ ] ensure the common Docker network renders correctly;
+- [x] ensure the frontend Docker network and isolated authentication-backend
+  network render correctly;
 - [ ] verify no implementation choice violates `PORTABILITY.md` without a documented reason.
 
 Gate:
@@ -231,6 +238,8 @@ Start only the minimum required services first.
 - [ ] Authelia healthy;
 - [ ] Authelia PostgreSQL healthy;
 - [ ] Authelia Redis healthy;
+- [x] PostgreSQL and Redis isolated from AIOStreams and Remux in the rendered
+  Compose model;
 - [ ] no unexpected ports listening on the LXC host;
 - [ ] Traefik discovers only explicitly enabled services.
 

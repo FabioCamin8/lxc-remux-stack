@@ -1,0 +1,172 @@
+services:
+  docker-socket-proxy:
+    image: ${SOCKET_PROXY_IMAGE?}
+    container_name: docker-socket-proxy
+    restart: unless-stopped
+    environment:
+      CONTAINERS: "1"
+      EVENTS: "1"
+      NETWORKS: "1"
+      PING: "1"
+      SERVICES: "1"
+      TASKS: "1"
+      VERSION: "1"
+      POST: "0"
+    read_only: true
+    tmpfs:
+      - /run
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - socket_proxy
+    profiles:
+      - required
+      - all
+
+  traefik:
+    image: ${TRAEFIK_IMAGE?}
+    ports: !override
+      - "${TRAEFIK_HTTP_BIND?}:80/tcp"
+      - "${TRAEFIK_HTTPS_BIND?}:443/tcp"
+    command: !override
+      - --ping=true
+      - --api=true
+      - --api.dashboard=true
+      - --api.insecure=false
+      - --global.sendanonymoususage=false
+      - --global.checknewversion=false
+      - --log=true
+      - --log.level=INFO
+      - --accesslog=true
+      - --accesslog.filepath=/data/access.log
+      - --accesslog.bufferingsize=100
+      - --providers.docker=true
+      - --providers.docker.endpoint=tcp://docker-socket-proxy:2375
+      - --providers.docker.exposedbydefault=false
+      - --providers.docker.network=${DOCKER_NETWORK?}
+      - --entrypoints.web.address=:80
+      - --entrypoints.websecure.address=:443
+      - --entrypoints.web.http.redirections.entrypoint.to=websecure
+      - --entrypoints.web.http.redirections.entrypoint.scheme=https
+      - --entrypoints.web.http.redirections.entrypoint.permanent=false
+      - --entrypoints.web.forwardedheaders.insecure=false
+      - --entrypoints.web.forwardedheaders.trustedips=${TRUSTED_IPS?}
+      - --entrypoints.websecure.forwardedheaders.insecure=false
+      - --entrypoints.websecure.forwardedheaders.trustedips=${TRUSTED_IPS?}
+      - --entrypoints.web.http.encodedcharacters.allowencodedslash=true
+      - --entrypoints.web.http.encodedcharacters.allowencodedbackslash=true
+      - --entrypoints.web.http.encodedcharacters.allowencodednullcharacter=true
+      - --entrypoints.web.http.encodedcharacters.allowencodedsemicolon=true
+      - --entrypoints.web.http.encodedcharacters.allowencodedpercent=true
+      - --entrypoints.web.http.encodedcharacters.allowencodedquestionmark=true
+      - --entrypoints.web.http.encodedcharacters.allowencodedhash=true
+      - --entrypoints.websecure.http.encodedcharacters.allowencodedslash=true
+      - --entrypoints.websecure.http.encodedcharacters.allowencodedbackslash=true
+      - --entrypoints.websecure.http.encodedcharacters.allowencodednullcharacter=true
+      - --entrypoints.websecure.http.encodedcharacters.allowencodedsemicolon=true
+      - --entrypoints.websecure.http.encodedcharacters.allowencodedpercent=true
+      - --entrypoints.websecure.http.encodedcharacters.allowencodedquestionmark=true
+      - --entrypoints.websecure.http.encodedcharacters.allowencodedhash=true
+    volumes: !override
+      - ${DOCKER_DATA_DIR?}/traefik:/data
+    networks:
+      - default
+      - socket_proxy
+    depends_on:
+      docker-socket-proxy:
+        condition: service_started
+      authelia:
+        condition: service_healthy
+    labels: !override
+      - traefik.enable=true
+      - traefik.docker.network=${DOCKER_NETWORK?}
+      - traefik.http.routers.traefik.rule=Host(`${TRAEFIK_HOSTNAME?}`)
+      - traefik.http.routers.traefik.entrypoints=websecure
+      - traefik.http.routers.traefik.tls=true
+      - traefik.http.routers.traefik.service=api@internal
+      - traefik.http.routers.traefik.middlewares=authelia@docker
+
+  authelia:
+    image: ${AUTHELIA_IMAGE?}
+    environment:
+      AUTHELIA_STORAGE_POSTGRES_PASSWORD: ${AUTHELIA_POSTGRES_PASSWORD?}
+    volumes: !override
+      - ${LXC_REMUX_RUNTIME_DIR?}/authelia:/config
+    networks: !override
+      - default
+      - auth_backend
+    labels: !override
+      - traefik.enable=true
+      - traefik.docker.network=${DOCKER_NETWORK?}
+      - traefik.http.routers.authelia.rule=Host(`${AUTHELIA_HOSTNAME?}`)
+      - traefik.http.routers.authelia.entrypoints=websecure
+      - traefik.http.routers.authelia.tls=true
+      - traefik.http.services.authelia.loadbalancer.server.port=9091
+      - traefik.http.middlewares.authelia.forwardauth.address=http://authelia:9091/api/authz/forward-auth
+      - traefik.http.middlewares.authelia.forwardauth.trustForwardHeader=true
+      - traefik.http.middlewares.authelia.forwardauth.authResponseHeaders=Remote-User,Remote-Groups,Remote-Email,Remote-Name
+
+  authelia_postgres:
+    image: ${POSTGRES_IMAGE?}
+    environment:
+      POSTGRES_USER: authelia
+      POSTGRES_PASSWORD: ${AUTHELIA_POSTGRES_PASSWORD?}
+      POSTGRES_DB: authelia
+    networks: !override
+      - auth_backend
+
+  authelia_redis:
+    image: ${REDIS_IMAGE?}
+    networks: !override
+      - auth_backend
+
+  aiostreams:
+    image: ${AIOSTREAMS_IMAGE?}
+    env_file: !override
+      - ${LXC_REMUX_RUNTIME_DIR?}/aiostreams.env
+    labels: !override
+      - traefik.enable=true
+      - traefik.docker.network=${DOCKER_NETWORK?}
+      - traefik.http.routers.aiostreams.rule=Host(`${AIOSTREAMS_HOSTNAME?}`)
+      - traefik.http.routers.aiostreams.entrypoints=websecure
+      - traefik.http.routers.aiostreams.tls=true
+      - traefik.http.services.aiostreams.loadbalancer.server.port=3000
+
+  remux:
+    image: ${REMUX_IMAGE?}
+    container_name: remux
+    restart: unless-stopped
+    expose:
+      - 3000
+    volumes:
+      - ${DOCKER_DATA_DIR?}/remux:/data
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=${DOCKER_NETWORK?}
+      - traefik.http.services.remux.loadbalancer.server.port=3000
+      - traefik.http.routers.remux.rule=Host(`${REMUX_HOSTNAME?}`)
+      - traefik.http.routers.remux.entrypoints=websecure
+      - traefik.http.routers.remux.tls=true
+      - traefik.http.routers.remux.priority=10
+      - traefik.http.routers.remux-admin.rule=Host(`${REMUX_HOSTNAME?}`) && PathRegexp(`(?i)^(/emby)*/admin(/|$)`)
+      - traefik.http.routers.remux-admin.entrypoints=websecure
+      - traefik.http.routers.remux-admin.tls=true
+      - traefik.http.routers.remux-admin.priority=100
+      - traefik.http.routers.remux-admin.middlewares=authelia@docker
+      - traefik.http.routers.remux-admin.service=remux
+    profiles:
+      - remux
+      - all
+
+networks:
+  default:
+    name: ${DOCKER_NETWORK?}
+    ipam:
+      config:
+        - subnet: ${DOCKER_NETWORK_CIDR?}
+  socket_proxy:
+    name: ${COMPOSE_PROJECT_NAME?}_socket_proxy
+    internal: true
+  auth_backend:
+    name: ${COMPOSE_PROJECT_NAME?}_auth_backend
+    internal: true

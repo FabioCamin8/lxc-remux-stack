@@ -1,6 +1,6 @@
 # Functional parity with the previous streaming stack
 
-Status: **baseline to verify**
+Status: **static baseline reconstructed; Docker runtime verification pending**
 
 This project replaces the runtime implementation of the existing K3s streaming stack, but it should preserve the useful application and operational behavior already established there.
 
@@ -44,6 +44,21 @@ The old K3s environment is a reference and rollback source until the operator ex
 | Updates | AIOStreams and Remux have different risk profiles; Remux remains conservative | updater policy must preserve review/rollback gates |
 | Recovery | application data and previous working image/config can be restored | documented backup, recreate, rollback and host migration procedures |
 | Reboot recovery | stack recovers after host reboot | Docker enabled at boot and Compose services use appropriate restart policy |
+
+## Pre-deployment classification
+
+| Area | Status | Evidence boundary |
+|---|---|---|
+| Historical repository reconstruction | PASS | merged reference and later feature branches reviewed; exact revisions in `UPSTREAMS.md` |
+| Live K3s mutable state | BLOCKED | strict SSH host-key trust is unavailable; the node was not changed |
+| AIOStreams persistence/machine routes | BLOCKED | overlay preserves `/app/data` and removes ForwardAuth, but no Docker runtime test yet |
+| Remux persistence/native client routes | BLOCKED | overlay preserves `/data` and current source routes were reviewed, but no Docker runtime test yet |
+| Remux `/admin` selective authentication | BLOCKED | route split is implemented; real Authelia session/TOTP proof is pending |
+| PostgreSQL and Redis for Authelia | INTENTIONAL DIFFERENCE | Viren architecture replaces the old lightweight Authelia storage/session layout |
+| Docker socket proxy | INTENTIONAL DIFFERENCE | Traefik receives bounded read-only API access instead of a direct socket mount |
+| Provider-backed playback/seek/resume | BLOCKED | not established by old evidence and not yet tested on Docker |
+| Updater | INTENTIONAL DIFFERENCE | Watchtower/WUD disabled; manual digest-recorded updates only |
+| Internet exposure/cutover | BLOCKED | outside the authorized local/LAN phase |
 
 ## Evidence to collect from the previous environment
 

@@ -69,7 +69,11 @@ Secrets must be portable independently of the host type. Backups must include th
 
 ## Network contract
 
-Container-to-container dependencies should use Docker service names on the common Compose network.
+Container-to-container dependencies use Docker service names. Traefik,
+Authelia, AIOStreams, and Remux use the frontend application network;
+Authelia, PostgreSQL, and Redis additionally use a separate internal
+authentication-backend network. AIOStreams and Remux do not join that backend
+network.
 
 Client-visible URLs must use externally valid names/URLs rather than Docker-only service names.
 
@@ -95,3 +99,10 @@ A future VM migration runbook must validate:
 - rollback to the old host until forwarding is switched.
 
 The desired end state is one Docker Compose architecture that can run on either a Proxmox LXC or a normal Debian VM. K3s is intentionally not part of that portability path.
+
+The implemented overlay uses only bind mounts below configurable `/opt` roots,
+normal bridge networks, Compose profiles, an internal authentication-backend
+network, and a Unix Docker socket isolated behind an internal proxy network. It
+contains no CT ID, VM ID, device mapping, host interface, host IP, Kubernetes
+object, or Proxmox-only mount. The detailed backup/restore and forwarding
+rollback sequence is in [`OPERATIONS.md`](OPERATIONS.md).
